@@ -1,24 +1,30 @@
-# Base image (OS)
-
+# Use Python 3.9 slim image as the base image
 FROM python:3.9-slim
 
-# Working directory
-
+# Set working directory
 WORKDIR /app
 
-# Copy src code to container
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
 
+# Install system dependencies
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements file
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy project files
 COPY . .
 
-# Run the build commands
+# Expose port 5000
+EXPOSE 5000
 
-RUN pip install -r requirements.txt
-
-# expose port 80
-
-EXPOSE 80
-
-# serve the app / run the app (keep it running)
-
-CMD ["python","run.py"]
-
+# Command to run the application
+CMD ["python", "run.py"] 
