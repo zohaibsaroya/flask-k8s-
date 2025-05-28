@@ -1,48 +1,25 @@
-name: Build and Push to ECR
-
-on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-
-env:
-  AWS_REGION: eu-north-1                   # AWS region
-  ECR_REPOSITORY: flask-app               # Correct ECR repository name
-
-jobs:
-  build:
-    name: Build and Push Image
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout source code
-      uses: actions/checkout@v3
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
-
-    - name: Build, tag, and push image to Amazon ECR
+    - name: Delete previous images from ECR (except current tag)
       env:
+        AWS_REGION: ${{ env.AWS_REGION }}
+        ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG: ${{ github.ref_name }}
       run: |
-        echo "Pushing to: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-        
-        # Build Docker image
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        echo "Deleting old images from ECR repository: $ECR_REPOSITORY"
 
-        # Push with SHA tag
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        # Get list of image tags except the current one
+        IMAGES_TO_DELETE=$(aws ecr list-images \
+          --region $AWS_REGION \
+          --repository-name $ECR_REPOSITORY \
+          --query "imageIds[?imageTag!=\`$IMAGE_TAG\`]" \
+          --output json)
 
-        # Tag as latest and push
-        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        if [ "$IMAGES_TO_DELETE" != "[]" ]; then
+          echo "Deleting images: $IMAGES_TO_DELETE"
+          aws ecr batch-delete-image \
+            --region $AWS_REGION \
+            --repository-name $ECR_REPOSITORY \
+            --image-ids "$IMAGES_TO_DELETE"
+        else
+          echo "No images to delete."
+        fi
