@@ -7,8 +7,8 @@ on:
     branches: [ "main" ]
 
 env:
-  AWS_REGION: eu-north-1                   # Set your AWS region
-  ECR_REPOSITORY: flask-app-ecs           # Set your ECR repository name
+  AWS_REGION: eu-north-1                   # AWS region
+  ECR_REPOSITORY: flask-app               # Correct ECR repository name
 
 jobs:
   build:
@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
+    - name: Checkout source code
       uses: actions/checkout@v3
 
     - name: Configure AWS credentials
@@ -35,9 +35,14 @@ jobs:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        # Build a docker container and push it to ECR
+        echo "Pushing to: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+        
+        # Build Docker image
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+
+        # Push with SHA tag
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        # Also tag as latest
+
+        # Tag as latest and push
         docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest 
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
